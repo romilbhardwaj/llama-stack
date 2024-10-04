@@ -22,7 +22,8 @@ from llama_models.llama3.api.tokenizer import Tokenizer
 from .config import SkyPilotImplConfig
 
 SKYPILOT_SUPPORTED_MODELS = {
-    "Meta-Llama3.1-8B-Instruct": "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    "Meta-Llama3.1-8B-Instruct": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "Llama3.1-8B-Instruct": "meta-llama/Meta-Llama-3.1-8B-Instruct"
 }
 
 yaml_dir = os.path.dirname(__file__) + "/yamls"
