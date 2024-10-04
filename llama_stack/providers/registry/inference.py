@@ -103,4 +103,13 @@ def available_providers() -> List[ProviderSpec]:
                 config_class="llama_stack.providers.adapters.inference.bedrock.BedrockConfig",
             ),
         ),
+        remote_provider_spec(
+            api=Api.inference,
+            adapter=AdapterSpec(
+                adapter_type="skypilot",
+                pip_packages=["skypilot-nightly[kubernetes]", "openai", "torch"],
+                module="llama_stack.providers.adapters.inference.skypilot",
+                config_class="llama_stack.providers.adapters.inference.skypilot.SkyPilotImplConfig",
+            ),
+        ),
     ]

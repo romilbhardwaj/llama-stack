@@ -32,6 +32,7 @@ outlined on that page and do not file a public issue.
 * ...
 
 ## Tips
+* If you are adding a new provider, remember to set `LLAMA_STACK_DIR` to your llama-stack repo dir when running any of the `llama` CLI commands.
 * If you are developing with a llama-models repository checked out and need your distribution to reflect changes from there, set `LLAMA_MODELS_DIR` to that dir when running any of the `llama` CLI commands.
 
 ## License
