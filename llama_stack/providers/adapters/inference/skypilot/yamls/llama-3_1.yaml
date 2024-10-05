@@ -69,8 +69,7 @@ service:
       max_tokens: 1
 
 resources:
-  accelerators: {L4:8, A10g:8, A10:8, A100:4, A100:8, A100-80GB:2, A100-80GB:4, A100-80GB:8}
-  # accelerators: {L4, A10g, A10, L40, A40, A100, A100-80GB} # We can use cheaper accelerators for 8B model.
+  accelerators: {L4, A10g, A10, L40, A40, A100, A100-80GB} # We can use cheaper accelerators for 8B model.
   cpus: 32+
   disk_size: 1000  # Ensure model checkpoints can fit.
   disk_tier: best
