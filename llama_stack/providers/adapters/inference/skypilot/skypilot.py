@@ -22,7 +22,6 @@ from llama_models.llama3.api.tokenizer import Tokenizer
 from .config import SkyPilotImplConfig
 
 SKYPILOT_SUPPORTED_MODELS = {
-    "Meta-Llama3.1-8B-Instruct": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "Llama3.1-8B-Instruct": "meta-llama/Meta-Llama-3.1-8B-Instruct"
 }
 
@@ -30,8 +29,10 @@ yaml_dir = os.path.dirname(__file__) + "/yamls"
 print("Using YAML directory: ", yaml_dir)
 
 SKYPILOT_YAML_MAP = {
-    "Meta-Llama3.1-8B-Instruct": os.path.join(yaml_dir, "llama-3_1.yaml")
+    "Llama3.1-8B-Instruct": os.path.join(yaml_dir, "llama-3_1.yaml")
 }
+
+SKYPILOT_TIMEOUT = 1200
 
 CLUSTER_NAME = "llama"
 
@@ -53,16 +54,18 @@ class SkyPilotInferenceAdapter(Inference, RoutableProviderForModels):
         self.formatter = ChatFormat(tokenizer)
 
     async def initialize(self) -> None:
-        pass
+        await self.setup_cluster()
 
     @property
     def client(self) -> OpenAI:
         return OpenAI(
-            base_url=self.endpoint_url
+            base_url=self.endpoint_url,
+            api_key='api_key'
         )
     
     async def shutdown(self) -> None:
         await self.down_cluster()
+        self.is_cluster_running = False
 
     async def down_cluster(self):
         """Terminates the SkyPilot cluster."""
@@ -83,14 +86,14 @@ class SkyPilotInferenceAdapter(Inference, RoutableProviderForModels):
         except Exception as e:
             print(f"An error occurred while terminating the cluster: {str(e)}")
 
-    async def setup_cluster(self, config: SkyPilotImplConfig):
+    async def setup_cluster(self):
         if not self.is_cluster_running:
-            self.launch_cluster(config)
+            await self.launch_cluster()
             self.is_cluster_running = True
         if self.endpoint_url is None:
-            self.endpoint_url = self.get_endpoint_url()
+            self.endpoint_url = await self.get_endpoint_url()
 
-    async def launch_cluster(self, config: SkyPilotImplConfig):
+    async def launch_cluster(self):
         # TODO: Remove this hardcoded model:
         model = "Llama3.1-8B-Instruct"
         yaml_file = SKYPILOT_YAML_MAP.get(model)
@@ -106,10 +109,10 @@ class SkyPilotInferenceAdapter(Inference, RoutableProviderForModels):
         )
 
         try:
-            stdout, stderr = await asyncio.wait_for(self.process.communicate(), timeout=self.config.timeout)
+            stdout, stderr = await asyncio.wait_for(self.process.communicate(), timeout=SKYPILOT_TIMEOUT)
         except asyncio.TimeoutError:
             self.process.terminate()
-            raise TimeoutError(f"Cluster launch timed out after {self.config.timeout} seconds")
+            raise TimeoutError(f"Cluster launch timed out after {SKYPILOT_TIMEOUT} seconds")
 
         if self.process.returncode != 0:
             raise RuntimeError(f"Cluster launch failed: {stderr.decode()}")
@@ -149,16 +152,11 @@ class SkyPilotInferenceAdapter(Inference, RoutableProviderForModels):
         return vllm_messages
 
     def resolve_vllm_model(self, model_name: str) -> str:
-        model = augment_messages_for_tools(model_name)
         assert (
-            model is not None
-            and model.descriptor(shorten_default_variant=True)
-            in SKYPILOT_SUPPORTED_MODELS
+            model_name in SKYPILOT_SUPPORTED_MODELS
         ), f"Unsupported model: {model_name}, use one of the supported models: {','.join(SKYPILOT_SUPPORTED_MODELS.keys())}"
 
-        return SKYPILOT_SUPPORTED_MODELS.get(
-            model.descriptor(shorten_default_variant=True)
-        )
+        return SKYPILOT_SUPPORTED_MODELS.get(model_name)
 
     async def chat_completion(
         self,
@@ -188,16 +186,13 @@ class SkyPilotInferenceAdapter(Inference, RoutableProviderForModels):
         model_input = self.formatter.encode_dialog_prompt(messages)
 
         input_tokens = len(model_input.tokens)
+        MAX_TOKENS = 1000  # TODO: Make this configurable
         max_new_tokens = min(
-            request.sampling_params.max_tokens or (self.max_tokens - input_tokens),
-            self.max_tokens - input_tokens - 1,
+            request.sampling_params.max_tokens or (MAX_TOKENS - input_tokens),
+            MAX_TOKENS - input_tokens - 1,
         )
 
         print(f"Calculated max_new_tokens: {max_new_tokens}")
-
-        assert (
-            request.model == self.model_name
-        ), f"Model mismatch, expected {self.model_name}, got {request.model}"
 
         if not request.stream:
             r = self.client.chat.completions.create(
@@ -255,7 +250,7 @@ class SkyPilotInferenceAdapter(Inference, RoutableProviderForModels):
                         stop_reason = StopReason.out_of_tokens
                     break
 
-                text = chunk.choices[0].message.content
+                text = chunk.choices[0].delta.content
                 if text is None:
                     continue
 

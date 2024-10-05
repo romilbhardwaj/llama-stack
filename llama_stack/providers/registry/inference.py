@@ -108,7 +108,7 @@ def available_providers() -> List[ProviderSpec]:
             api=Api.inference,
             adapter=AdapterSpec(
                 adapter_type="skypilot",
-                pip_packages=["skypilot-nightly[kubernetes]", "openai", "torch"],
+                pip_packages=["skypilot-nightly[kubernetes,aws,gcp]", "openai", "torch"],
                 module="llama_stack.providers.adapters.inference.skypilot",
                 config_class="llama_stack.providers.adapters.inference.skypilot.SkyPilotImplConfig",
             ),
